@@ -56,7 +56,7 @@ const ImageSlider = () => {
 
       {/* Content */}
       <div className="slider-text-content">
-        <h1 className="brand-logo">RTBMS</h1>
+        <h1 className="brand-logo">RaktSarthi</h1>
         <p className="brand-tagline">Real-Time Blood Management System</p>
         
         <div className="slide-caption">

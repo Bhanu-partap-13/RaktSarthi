@@ -12,6 +12,13 @@ router.get('/profile', auth, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    // Set default activeMode if not set
+    if (!user.activeMode) {
+      user.activeMode = 'patient';
+      await user.save();
+    }
+    
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -23,7 +30,7 @@ router.get('/profile', auth, async (req, res) => {
 // @access  Private
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { name, phone, bloodGroup, isDonor, address, isAvailable } = req.body;
+    const { name, phone, bloodGroup, isDonor, address, isAvailable, location } = req.body;
     
     const updateFields = {};
     if (name) updateFields.name = name;
@@ -32,6 +39,7 @@ router.put('/profile', auth, async (req, res) => {
     if (isDonor !== undefined) updateFields.isDonor = isDonor;
     if (address) updateFields.address = address;
     if (isAvailable !== undefined) updateFields.isAvailable = isAvailable;
+    if (location) updateFields.location = location;
 
     const user = await User.findByIdAndUpdate(
       req.user.userId,
@@ -50,11 +58,21 @@ router.put('/profile', auth, async (req, res) => {
 // @access  Private
 router.put('/donor-info', auth, async (req, res) => {
   try {
-    const donorInfo = req.body;
+    const { location, ...donorInfo } = req.body;
+    
+    const updateFields = {
+      donorInfo,
+      isDonor: true
+    };
+    
+    // Add location if provided
+    if (location) {
+      updateFields.location = location;
+    }
     
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      { $set: { donorInfo, isDonor: true } },
+      { $set: updateFields },
       { new: true }
     ).select('-password');
 
@@ -102,6 +120,161 @@ router.get('/donors', auth, async (req, res) => {
 
     res.json(donors);
   } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   PUT /api/users/toggle-mode
+// @desc    Toggle between donor and patient mode
+// @access  Private
+router.put('/toggle-mode', auth, async (req, res) => {
+  try {
+    const { mode } = req.body;
+    
+    console.log('Toggle mode request received:', { userId: req.user.userId, mode, body: req.body });
+    
+    if (!mode) {
+      return res.status(400).json({ message: 'Mode parameter is required' });
+    }
+    
+    if (!['donor', 'patient'].includes(mode)) {
+      return res.status(400).json({ message: 'Invalid mode. Must be donor or patient' });
+    }
+
+    const user = await User.findById(req.user.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Set default activeMode if not set
+    if (!user.activeMode) {
+      user.activeMode = 'patient';
+    }
+
+    // If switching to donor mode, ensure they have isDonor set
+    if (mode === 'donor' && !user.isDonor) {
+      return res.status(400).json({ 
+        message: 'Please complete donor registration first',
+        requiresRegistration: true
+      });
+    }
+
+    // Update mode
+    user.activeMode = mode;
+    await user.save();
+
+    res.json({ 
+      success: true,
+      message: `Switched to ${mode} mode successfully`, 
+      user,
+      activeMode: user.activeMode
+    });
+  } catch (error) {
+    console.error('Error toggling mode:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error while switching mode', 
+      error: error.message 
+    });
+  }
+});
+
+// @route   GET /api/users/dashboard/stats
+// @desc    Get dashboard statistics for charts
+// @access  Private
+router.get('/dashboard/stats', auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const BloodRequest = require('../models/BloodRequest');
+    const Event = require('../models/Event');
+    const User = require('../models/User');
+
+    // Get user's requests statistics
+    const myRequestsStats = await BloodRequest.aggregate([
+      { $match: { requestedBy: userId } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get blood group distribution of active requests
+    const bloodGroupStats = await BloodRequest.aggregate([
+      { $match: { status: 'pending' } },
+      {
+        $group: {
+          _id: '$bloodGroup',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Get urgency distribution
+    const urgencyStats = await BloodRequest.aggregate([
+      { $match: { status: 'pending' } },
+      {
+        $group: {
+          _id: '$urgency',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get monthly requests trend (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const monthlyTrend = await BloodRequest.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Get total donors and patients
+    const donorCount = await User.countDocuments({ isDonor: true, isAvailable: true });
+    const totalUsers = await User.countDocuments({});
+
+    // Get upcoming events count
+    const upcomingEvents = await Event.countDocuments({
+      date: { $gte: new Date() },
+      isActive: true
+    });
+
+    // Get user's registered events count
+    const registeredEventsCount = await Event.countDocuments({
+      registeredDonors: userId,
+      date: { $gte: new Date() }
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        myRequests: myRequestsStats,
+        bloodGroups: bloodGroupStats,
+        urgency: urgencyStats,
+        monthlyTrend,
+        overview: {
+          totalDonors: donorCount,
+          totalUsers,
+          upcomingEvents,
+          registeredEvents: registeredEventsCount
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

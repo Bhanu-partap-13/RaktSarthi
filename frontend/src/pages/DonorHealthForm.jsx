@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ToastContainer';
 import { userAPI } from '../services/api';
 import './DonorHealthForm.css';
 
 const DonorHealthForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [locationShared, setLocationShared] = useState(false);
+  const [location, setLocation] = useState(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   const [formData, setFormData] = useState({
     // Personal Health Info
@@ -133,6 +138,33 @@ const DonorHealthForm = () => {
     };
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        setLocation(coords);
+        setLocationShared(true);
+        setGettingLocation(false);
+        setSuccess('Location shared successfully!');
+        setTimeout(() => setSuccess(''), 2000);
+      },
+      (error) => {
+        setGettingLocation(false);
+        setError(`Unable to retrieve location: ${error.message}`);
+        setTimeout(() => setError(''), 3000);
+      }
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -147,20 +179,33 @@ const DonorHealthForm = () => {
     
     setLoading(true);
     try {
-      await userAPI.updateDonorInfo({
+      const submitData = {
         ...formData,
         isEligible: eligibility.eligible,
         eligibilityReasons: eligibility.reasons,
         lastUpdated: new Date().toISOString()
-      });
+      };
+
+      // Add location if shared
+      if (location) {
+        submitData.location = {
+          type: 'Point',
+          coordinates: [location.longitude, location.latitude]
+        };
+      }
+
+      await userAPI.updateDonorInfo(submitData);
       
-      setSuccess(eligibility.eligible 
+      const successMessage = eligibility.eligible 
         ? 'Your information has been saved! You are eligible to donate blood.' 
-        : 'Your information has been saved. Based on your responses, you may not be eligible to donate at this time.');
+        : 'Your information has been saved. Based on your responses, you may not be eligible to donate at this time.';
+      setSuccess(successMessage);
+      toast.success(successMessage);
       
       setTimeout(() => navigate('/profile'), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save information');
+      toast.error(err.response?.data?.message || 'Failed to save your health information. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -243,6 +288,50 @@ const DonorHealthForm = () => {
                 <option value="other">Other</option>
               </select>
             </div>
+          </div>
+
+          {/* Location Sharing */}
+          <div className="location-section">
+            <div className="location-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" strokeWidth="2"/>
+                <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+              <label>Share Your Location (Helps patients find donors nearby)</label>
+            </div>
+            <button
+              type="button"
+              className={`btn-location ${locationShared ? 'shared' : ''}`}
+              onClick={handleGetLocation}
+              disabled={gettingLocation || locationShared}
+            >
+              {gettingLocation ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Getting location...
+                </>
+              ) : locationShared ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Location Shared
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Share My Location
+                </>
+              )}
+            </button>
+            {locationShared && location && (
+              <small className="location-info">
+                Latitude: {location.latitude.toFixed(6)}, Longitude: {location.longitude.toFixed(6)}
+              </small>
+            )}
           </div>
         </section>
 

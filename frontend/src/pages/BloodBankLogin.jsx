@@ -28,9 +28,33 @@ const BloodBankLogin = () => {
     try {
       const response = await api.post('/blood-banks/login', formData);
       
+      console.log('Login response:', response.data);
+      
       // Store blood bank token and data
       localStorage.setItem('bloodBankToken', response.data.token);
       localStorage.setItem('bloodBankData', JSON.stringify(response.data.bloodBank));
+      
+      // Store inventory from login response if available
+      const bloodBankId = response.data.bloodBank.id;
+      console.log('Blood Bank ID:', bloodBankId);
+      console.log('Login inventory:', response.data.bloodBank.inventory);
+      
+      if (response.data.bloodBank.inventory && response.data.bloodBank.inventory.length > 0) {
+        // Map backend format to frontend format
+        const mappedInventory = response.data.bloodBank.inventory.map(item => ({
+          type: item.bloodGroup || item.type,
+          units: item.units || 0,
+          status: item.units > 10 ? 'good' : item.units > 5 ? 'low' : 'critical',
+          lastUpdated: item.lastUpdated
+        }));
+        console.log('Mapped inventory to save:', mappedInventory);
+        localStorage.setItem(`inventory_${bloodBankId}`, JSON.stringify(mappedInventory));
+        console.log('Inventory saved to localStorage with key:', `inventory_${bloodBankId}`);
+      } else {
+        console.log('No inventory in login response, checking if localStorage has saved data...');
+        const savedInventory = localStorage.getItem(`inventory_${bloodBankId}`);
+        console.log('Existing saved inventory:', savedInventory);
+      }
       
       navigate('/blood-bank/dashboard');
     } catch (err) {
@@ -41,7 +65,8 @@ const BloodBankLogin = () => {
   };
 
   return (
-    <div className="blood-bank-auth-container">
+    <div className="login-page-wrapper">
+      <div className="blood-bank-auth-container">
       <div className="auth-left-panel">
         <div className="auth-branding">
           <div className="auth-logo">
@@ -184,6 +209,7 @@ const BloodBankLogin = () => {
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

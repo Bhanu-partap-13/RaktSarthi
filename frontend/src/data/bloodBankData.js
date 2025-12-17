@@ -1,19 +1,19 @@
 // Shared blood bank inventory data to ensure consistency across the app
 export const capitalHospitalInventory = [
-  { bloodGroup: 'A+', units: 25, lastUpdated: new Date() },
-  { bloodGroup: 'A-', units: 8, lastUpdated: new Date() },
-  { bloodGroup: 'B+', units: 30, lastUpdated: new Date() },
-  { bloodGroup: 'B-', units: 5, lastUpdated: new Date() },
-  { bloodGroup: 'AB+', units: 15, lastUpdated: new Date() },
-  { bloodGroup: 'AB-', units: 3, lastUpdated: new Date() },
-  { bloodGroup: 'O+', units: 40, lastUpdated: new Date() },
-  { bloodGroup: 'O-', units: 10, lastUpdated: new Date() }
+  { bloodGroup: 'A+', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'A-', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'B+', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'B-', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'AB+', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'AB-', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'O+', units: 0, lastUpdated: new Date() },
+  { bloodGroup: 'O-', units: 0, lastUpdated: new Date() }
 ];
 
 // Function to get inventory status based on units
 export const getInventoryStatus = (units) => {
-  if (units >= 20) return 'good';
-  if (units >= 10) return 'low';
+  if (units >= 50) return 'good';
+  if (units >= 30) return 'low';
   return 'critical';
 };
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const xlsx = require('xlsx');
+const ExcelJS = require('exceljs');
 const BloodCamp = require('../models/BloodCamp');
 const BloodBank = require('../models/BloodBank');
 const User = require('../models/User');
@@ -20,14 +20,20 @@ const protectBloodBank = async (req, res, next) => {
         return res.status(401).json({ message: 'Not authorized as blood bank' });
       }
       
-      req.bloodBank = await BloodBank.findById(decoded.id).select('-password');
+      // Use bloodBankId from token (new format)
+      const bloodBankId = decoded.bloodBankId || decoded.id;
+      req.bloodBank = await BloodBank.findById(bloodBankId).select('-password');
+      
+      if (!req.bloodBank) {
+        return res.status(401).json({ message: 'Blood bank not found' });
+      }
+      
       next();
     } catch (error) {
+      console.error('Auth error:', error);
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
-  }
-
-  if (!token) {
+  } else {
     return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
@@ -38,6 +44,8 @@ const protectBloodBank = async (req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const { city, status, upcoming } = req.query;
+    
+    console.log('Fetching blood camps with query:', { city, status, upcoming });
     
     let query = {};
     
@@ -55,9 +63,13 @@ router.get('/', async (req, res) => {
       query.status = { $in: ['scheduled', 'upcoming'] };
     }
     
+    console.log('MongoDB query:', JSON.stringify(query));
+    
     const camps = await BloodCamp.find(query)
       .populate('organizer', 'name email phone')
       .sort({ date: 1 });
+    
+    console.log(`Found ${camps.length} blood camps`);
     
     res.json(camps);
   } catch (error) {
@@ -89,6 +101,10 @@ router.get('/:id', async (req, res) => {
 // @access  Private (Blood Bank)
 router.post('/', protectBloodBank, async (req, res) => {
   try {
+    console.log('📝 Creating blood camp...');
+    console.log('Blood Bank:', req.bloodBank.name, req.bloodBank._id);
+    console.log('Request body:', req.body);
+    
     const {
       name,
       date,
@@ -123,15 +139,18 @@ router.post('/', protectBloodBank, async (req, res) => {
       contactEmail: contactEmail || req.bloodBank.email
     });
 
+    console.log('Camp object before save:', camp);
     await camp.save();
+    console.log('✅ Blood camp saved to database:', camp._id);
     
     res.status(201).json({
       message: 'Blood camp created successfully',
       camp
     });
   } catch (error) {
-    console.error('Error creating blood camp:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Error creating blood camp:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -225,27 +244,59 @@ router.post('/:id/register', auth, async (req, res) => {
       return res.status(404).json({ message: 'Blood camp not found' });
     }
     
+    // Get user ID from token
+    const userId = req.user.userId || req.user._id;
+    console.log('Registering user ID:', userId);
+    console.log('Token data:', req.user);
+    
+    // Fetch full user details from database
+    const User = require('../models/User');
+    const user = await User.findById(userId).select('name email phone bloodGroup');
+    
+    console.log('Fetched user from DB:', user);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
     // Check if already registered
     const alreadyRegistered = camp.registeredDonors.some(
-      donor => donor.donor && donor.donor.toString() === req.user._id.toString()
+      donor => donor.donor && donor.donor.toString() === userId.toString()
     );
     
     if (alreadyRegistered) {
-      return res.status(400).json({ message: 'Already registered for this camp' });
+      return res.status(400).json({ message: 'You have already registered for this camp' });
     }
     
-    camp.registeredDonors.push({
-      donor: req.user._id,
-      name: req.user.name,
-      phone: req.user.phone,
-      bloodGroup: req.user.bloodGroup
-    });
+    // Add donor with full details from database
+    const donorData = {
+      donor: userId,
+      name: user.name || 'Unknown',
+      phone: user.phone || 'Not provided',
+      bloodGroup: user.bloodGroup || 'Not specified',
+      registeredAt: new Date()
+    };
+    
+    console.log('Adding donor data:', donorData);
+    
+    camp.registeredDonors.push(donorData);
     
     await camp.save();
     
-    res.json({ message: 'Successfully registered for blood camp' });
+    console.log('Camp saved successfully. Total registrations:', camp.registeredDonors.length);
+    
+    res.json({ 
+      success: true,
+      message: 'Successfully registered for blood camp',
+      registration: {
+        name: user.name,
+        bloodGroup: user.bloodGroup,
+        phone: user.phone
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -350,6 +401,172 @@ router.put('/:id/collected', protectBloodBank, async (req, res) => {
     res.json({ message: 'Collected units updated', camp });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/blood-camps/cleanup-registrations
+// @desc    Remove invalid registrations (fake/empty data)
+// @access  Private (Admin/Development only)
+router.post('/cleanup-registrations', async (req, res) => {
+  try {
+    console.log('🧹 Starting cleanup of invalid registrations...');
+    
+    const camps = await BloodCamp.find({ 'registeredDonors.0': { $exists: true } });
+    
+    console.log(`Found ${camps.length} camps with registrations`);
+    
+    let removedCount = 0;
+    
+    for (const camp of camps) {
+      const originalLength = camp.registeredDonors.length;
+      
+      // Remove registrations without valid donor reference or with placeholder data
+      camp.registeredDonors = camp.registeredDonors.filter(donor => {
+        // Check if donor has valid data
+        const hasValidName = donor.name && donor.name !== 'Unknown' && donor.name.trim() !== '';
+        const hasValidDonor = donor.donor && donor.donor.toString().length === 24; // Valid MongoDB ObjectId
+        
+        if (!hasValidName || !hasValidDonor) {
+          console.log(`❌ Removing invalid registration: ${donor.name || 'No name'}`);
+          removedCount++;
+          return false;
+        }
+        return true;
+      });
+      
+      // Save if any registrations were removed
+      if (originalLength !== camp.registeredDonors.length) {
+        await camp.save();
+        console.log(`💾 Updated camp: ${camp.name} (removed ${originalLength - camp.registeredDonors.length} invalid)`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Cleanup completed',
+      removed: removedCount,
+      campsProcessed: camps.length
+    });
+  } catch (error) {
+    console.error('Error cleaning up registrations:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST /api/blood-camps/cleanup-registrations
+// @desc    Remove invalid registrations (fake/empty data)
+// @access  Private (Admin/Development only)
+router.post('/cleanup-registrations', async (req, res) => {
+  try {
+    console.log('🧹 Starting cleanup of invalid registrations...');
+    
+    const camps = await BloodCamp.find({ 'registeredDonors.0': { $exists: true } });
+    
+    console.log(`Found ${camps.length} camps with registrations`);
+    
+    let removedCount = 0;
+    
+    for (const camp of camps) {
+      const originalLength = camp.registeredDonors.length;
+      
+      // Remove registrations without valid donor reference or with placeholder data
+      camp.registeredDonors = camp.registeredDonors.filter(donor => {
+        // Check if donor has valid data
+        const hasValidName = donor.name && donor.name !== 'Unknown' && donor.name.trim() !== '';
+        const hasValidDonor = donor.donor && donor.donor.toString().length === 24; // Valid MongoDB ObjectId
+        
+        if (!hasValidName || !hasValidDonor) {
+          console.log(`❌ Removing invalid registration: ${donor.name || 'No name'}`);
+          removedCount++;
+          return false;
+        }
+        return true;
+      });
+      
+      // Save if any registrations were removed
+      if (originalLength !== camp.registeredDonors.length) {
+        await camp.save();
+        console.log(`💾 Updated camp: ${camp.name} (removed ${originalLength - camp.registeredDonors.length} invalid)`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Cleanup completed',
+      removed: removedCount,
+      campsProcessed: camps.length
+    });
+  } catch (error) {
+    console.error('Error cleaning up registrations:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST /api/blood-camps/fix-registrations
+// @desc    Fix empty registration data by populating from User collection
+// @access  Private (Admin/Development only)
+router.post('/fix-registrations', async (req, res) => {
+  try {
+    console.log('🔧 Starting registration data fix...');
+    
+    // Find all camps with registrations
+    const camps = await BloodCamp.find({ 'registeredDonors.0': { $exists: true } });
+    
+    console.log(`Found ${camps.length} camps with registrations`);
+    
+    let fixedCount = 0;
+    let errorCount = 0;
+    
+    for (const camp of camps) {
+      let campUpdated = false;
+      
+      for (let i = 0; i < camp.registeredDonors.length; i++) {
+        const donor = camp.registeredDonors[i];
+        
+        // Check if donor data is missing
+        if (!donor.name || !donor.phone || !donor.bloodGroup || 
+            donor.name === 'Unknown' || donor.phone === 'Not provided') {
+          
+          console.log(`Fixing registration for donor ${donor.donor}`);
+          
+          try {
+            // Fetch user data
+            const user = await User.findById(donor.donor).select('name phone bloodGroup');
+            
+            if (user) {
+              camp.registeredDonors[i].name = user.name || 'Unknown';
+              camp.registeredDonors[i].phone = user.phone || 'Not provided';
+              camp.registeredDonors[i].bloodGroup = user.bloodGroup || 'Not specified';
+              campUpdated = true;
+              fixedCount++;
+              console.log(`✅ Fixed: ${user.name}`);
+            } else {
+              console.log(`❌ User not found: ${donor.donor}`);
+              errorCount++;
+            }
+          } catch (err) {
+            console.error(`Error fixing donor ${donor.donor}:`, err.message);
+            errorCount++;
+          }
+        }
+      }
+      
+      if (campUpdated) {
+        await camp.save();
+        console.log(`💾 Saved camp: ${camp.name}`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Registration data fix completed',
+      fixed: fixedCount,
+      errors: errorCount,
+      campsProcessed: camps.length
+    });
+  } catch (error) {
+    console.error('Error fixing registrations:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

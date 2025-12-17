@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/ToastContainer';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -34,10 +35,11 @@ const Layout = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <Layout>
-            <Routes>
+      <ToastProvider>
+        <Router>
+          <div className="App">
+            <Layout>
+              <Routes>
               {/* Blood Bank Routes */}
               <Route path="/blood-bank/login" element={<BloodBankLogin />} />
               <Route path="/blood-bank/register" element={<BloodBankRegister />} />
@@ -59,10 +61,11 @@ function App() {
               
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/dashboard" />} />
-            </Routes>
-          </Layout>
-        </div>
-      </Router>
+              </Routes>
+            </Layout>
+          </div>
+        </Router>
+      </ToastProvider>
     </AuthProvider>
   );
 }

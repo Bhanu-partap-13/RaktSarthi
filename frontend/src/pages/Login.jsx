@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ToastContainer';
 import ImageSlider from '../components/ImageSlider';
 import SignupModal from '../components/SignupModal';
 import './Auth.css';
@@ -17,6 +18,7 @@ const Login = () => {
   
   const { login, loginWithGoogle, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -45,14 +47,17 @@ const Login = () => {
       
       if (result.success) {
         setSuccess('Login successful! Redirecting...');
+        toast.success('Login successful! Welcome back.');
         setTimeout(() => {
           navigate('/dashboard');
         }, 1500);
       } else {
         setError(result.message || 'Login failed. Please check your credentials.');
+        toast.error(result.message || 'Login failed. Please check your credentials.');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -68,28 +73,32 @@ const Login = () => {
       
       if (result.success) {
         setSuccess('Login successful! Redirecting...');
+        toast.success('Login successful with Google!');
         setTimeout(() => {
           navigate('/dashboard');
         }, 1500);
       } else {
         setError(result.message || 'Google login failed.');
+        toast.error(result.message || 'Google login failed.');
       }
     } catch (err) {
       setError('An error occurred during Google login.');
+      toast.error('An error occurred during Google login.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      {/* Left Side - Image Slider */}
-      <div className="login-slider">
-        <ImageSlider />
-      </div>
+    <div className="login-page-wrapper">
+      <div className="login-container">
+        {/* Left Side - Image Slider */}
+        <div className="login-slider">
+          <ImageSlider />
+        </div>
 
-      {/* Right Side - Login Form */}
-      <div className="login-form-section">
+        {/* Right Side - Login Form */}
+        <div className="login-form-section">
         <div className="login-form-container">
           <div className="form-header">
             <h2>Welcome Back!</h2>
@@ -213,6 +222,12 @@ const Login = () => {
                 Sign up here
               </button>
             </p>
+            <p className="blood-bank-link">
+              Sign up if you are blood bank?
+              <Link to="/blood-bank/login" className="form-link">
+                Blood Bank Portal
+              </Link>
+            </p>
           </div>
 
           <div className="features-info">
@@ -234,6 +249,7 @@ const Login = () => {
         isOpen={isSignupModalOpen} 
         onClose={() => setIsSignupModalOpen(false)} 
       />
+    </div>
     </div>
   );
 };

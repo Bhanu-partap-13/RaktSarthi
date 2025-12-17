@@ -1,7 +1,11 @@
 /* Enhanced Login Page Styles */
+.login-page-wrapper {
+  overflow: hidden;
+  height: 100vh;
+}
+
 .login-container {
   height: 100vh;
-  max-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: #ffffff;
@@ -54,6 +58,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
+  max-height: 100vh;
 }
 
 .brand-logo {
@@ -74,7 +79,7 @@
 }
 
 .brand-logo::after {
-  content: 'RTBMS';
+  content: 'RaktSarthi';
   position: absolute;
   left: 0;
   right: 0;
@@ -137,7 +142,8 @@
 .slide-image-container {
   position: relative;
   width: 100%;
-  height: 400px;
+  max-height: 450px;
+  height: 450px;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -214,7 +220,8 @@
 /* Image Trail Wrapper */
 .image-trail-wrapper {
   width: 100%;
-  height: 450px;
+  max-height: 400px;
+  height: 400px;
   position: relative;
   overflow: hidden;
   border-radius: 12px;
@@ -268,7 +275,6 @@
   padding: 2rem;
   background: #f8f9fa;
   height: 100vh;
-  max-height: 100vh;
   overflow-y: auto;
 }
 
@@ -279,11 +285,14 @@
   padding: 2rem;
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: min-content;
 }
 
 .form-header {
   text-align: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .form-header h2 {
@@ -299,7 +308,7 @@
 }
 
 .login-form .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .login-form label {
@@ -479,14 +488,22 @@
 
 .form-footer {
   text-align: center;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
   border-top: 1px solid #e0e0e0;
 }
 
 .form-footer p {
   color: #666;
   font-size: 0.95rem;
+}
+
+.form-footer .blood-bank-link {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f0f0f0;
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .form-link,
@@ -545,23 +562,38 @@
 
 .features-info {
   display: flex;
-  justify-content: space-around;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid #e0e0e0;
 }
 
 .feature-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
   color: #666;
+  flex: 1;
+  text-align: center;
 }
 
 .feature-item span {
-  color: #28a745;
+  color: white;
   font-weight: bold;
+  background: #28a745;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  flex-shrink: 0;
 }
 
 /* Responsive Design */
@@ -575,11 +607,11 @@
   }
 
   .login-form-section {
-    padding: 2rem 1rem;
+    padding: 1rem;
   }
 
   .login-form-container {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem;
   }
 }
 
@@ -704,6 +736,84 @@
   text-decoration: underline;
 }
 
+/* Donor Selection Section */
+.donor-selection-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.option-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.option-card {
+  position: relative;
+  padding: 1.5rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+  text-align: center;
+}
+
+.option-card:hover {
+  border-color: #e63946;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(230, 57, 70, 0.15);
+}
+
+.option-card.selected {
+  border-color: #e63946;
+  background: linear-gradient(135deg, rgba(230, 57, 70, 0.05), rgba(214, 40, 40, 0.05));
+  box-shadow: 0 4px 12px rgba(230, 57, 70, 0.2);
+}
+
+.option-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.option-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.option-content svg {
+  width: 32px;
+  height: 32px;
+  color: #999;
+  transition: color 0.3s ease;
+}
+
+.option-card.selected .option-content svg {
+  color: #e63946;
+}
+
+.option-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.option-card.selected .option-title {
+  color: #e63946;
+}
+
+.option-content small {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
 @media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
@@ -715,5 +825,22 @@
   
   .signup-card {
     max-width: 100%;
+  }
+
+  .option-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .option-card {
+    padding: 1.25rem;
+  }
+
+  .option-content svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .option-title {
+    font-size: 1rem;
   }
 }

@@ -45,20 +45,42 @@ const BloodRequestSchema = new mongoose.Schema({
   },
   requiredBy: {
     type: Date,
-    required: true
+    default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default: 7 days from now
   },
   status: {
     type: String,
-    enum: ['pending', 'fulfilled', 'cancelled'],
+    enum: ['pending', 'approved', 'rejected', 'fulfilled', 'cancelled'],
     default: 'pending'
   },
   description: {
     type: String
   },
+  bloodBank: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BloodBank'
+  },
+  bloodBankResponse: {
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected']
+    },
+    respondedAt: Date,
+    respondedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BloodBank'
+    },
+    responseNote: String
+  },
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('BloodRequest', BloodRequestSchema);

@@ -1,30 +1,93 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { bloodBankAPI, userAPI } from '../services/api';
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-
-  // Sample notifications based on blood group matching
-  useEffect(() => {
-    if (user && user.bloodGroup) {
-      // Simulated notifications for blood group matching
-      setNotifications([
-        { id: 1, message: `A donor with ${user.bloodGroup} blood is available nearby`, time: '5 min ago', read: false },
-        { id: 2, message: `Blood camp at LPU needs ${user.bloodGroup} donors`, time: '1 hour ago', read: false },
-        { id: 3, message: 'Your last donation was 3 months ago. You can donate again!', time: '2 days ago', read: true },
-      ]);
-    }
-  }, [user]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  // Fetch notifications
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const [bloodBanksRes, donorsRes] = await Promise.all([
+          bloodBankAPI.getAll(),
+          userAPI.getDonors()
+        ]);
+
+        const newNotifications = [];
+        
+        // Check for new blood banks (created in last 24 hours)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        bloodBanksRes.data.forEach(bank => {
+          if (new Date(bank.createdAt) > oneDayAgo) {
+            newNotifications.push({
+              id: `bank-${bank._id}`,
+              type: 'blood-bank',
+              title: 'New Blood Bank',
+              message: `${bank.name} is now registered`,
+              timestamp: bank.createdAt,
+              read: false
+            });
+          }
+        });
+
+        // Check for available donors by blood group
+        const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        bloodGroups.forEach(group => {
+          const availableDonors = donorsRes.data.filter(
+            donor => donor.bloodGroup === group && donor.isAvailable
+          );
+          if (availableDonors.length > 0) {
+            newNotifications.push({
+              id: `donor-${group}`,
+              type: 'donor-available',
+              title: `${group} Donors Available`,
+              message: `${availableDonors.length} ${group} donor(s) available now`,
+              timestamp: new Date().toISOString(),
+              read: false
+            });
+          }
+        });
+
+        setNotifications(newNotifications);
+        setUnreadCount(newNotifications.filter(n => !n.read).length);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      }
+    };
+
+    fetchNotifications();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  const markAsRead = (notificationId) => {
+    setNotifications(prev => 
+      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
   };
 
   if (!isAuthenticated) {
@@ -38,10 +101,30 @@ const Navbar = () => {
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{marginRight: '8px', verticalAlign: 'middle'}}>
             <path d="M10 2C10 2 5 7.5 5 12C5 14.7614 7.23858 17 10 17C12.7614 17 15 14.7614 15 12C15 7.5 10 2 10 2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="#ef4444"/>
           </svg>
-          RTBMS
+          RaktSarthi
         </Link>
+
+        {/* Hamburger Menu Button */}
+        <button 
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          )}
+        </button>
         
-        <ul className="navbar-menu">
+        <ul className={`navbar-menu ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           <li>
             <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>
               Dashboard
@@ -52,68 +135,114 @@ const Navbar = () => {
               Blood Banks
             </Link>
           </li>
-          <li>
-            <Link to="/donors" className={location.pathname === '/donors' ? 'active' : ''}>
-              Find Donors
-            </Link>
-          </li>
-          <li>
-            <Link to="/events" className={location.pathname === '/events' ? 'active' : ''}>
-              Events
-            </Link>
-          </li>
-          <li>
-            <Link to="/create-request" className={location.pathname === '/create-request' ? 'active' : ''}>
-              Request Blood
-            </Link>
-          </li>
-          <li>
-            <Link to="/donor-form" className={location.pathname === '/donor-form' ? 'active' : ''}>
-              Donor Form
-            </Link>
-          </li>
+          {/* Donor Mode Only - Events */}
+          {user?.activeMode === 'donor' && (
+            <li>
+              <Link to="/events" className={location.pathname === '/events' ? 'active' : ''}>
+                Events
+              </Link>
+            </li>
+          )}
+          {/* Patient Mode Only */}
+          {user?.activeMode !== 'donor' && (
+            <>
+              <li>
+                <Link to="/donors" className={location.pathname === '/donors' ? 'active' : ''}>
+                  Find Donors
+                </Link>
+              </li>
+              <li>
+                <Link to="/create-request" className={location.pathname === '/create-request' ? 'active' : ''}>
+                  Request Blood
+                </Link>
+              </li>
+            </>
+          )}
+          {/* Donor Mode Only */}
+          {user?.activeMode === 'donor' && user?.isDonor && (
+            <li>
+              <Link to="/donor-form" className={location.pathname === '/donor-form' ? 'active' : ''}>
+                Donor Profile
+              </Link>
+            </li>
+          )}
         </ul>
 
         <div className="navbar-actions">
-          {/* Notifications Bell */}
-          <div className="notification-dropdown" onMouseLeave={() => setShowNotifications(false)}>
+          {/* Notification Bell */}
+          <div className="notification-container">
             <button 
               className="notification-btn"
-              onMouseEnter={() => setShowNotifications(true)}
+              onClick={() => setShowNotifications(!showNotifications)}
+              aria-label="Notifications"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
               </svg>
-              {notifications.filter(n => !n.read).length > 0 && (
-                <span className="notification-badge">{notifications.filter(n => !n.read).length}</span>
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
               )}
             </button>
+            
             {showNotifications && (
-              <div className="notification-menu">
+              <div className="notification-dropdown">
                 <div className="notification-header">
-                  <h4>Notifications</h4>
+                  <h3>Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button className="mark-all-read" onClick={markAllAsRead}>
+                      Mark all as read
+                    </button>
+                  )}
                 </div>
-                {notifications.length === 0 ? (
-                  <div className="notification-empty">No notifications</div>
-                ) : (
-                  notifications.map(notif => (
-                    <div key={notif.id} className={`notification-item ${!notif.read ? 'unread' : ''}`}>
-                      <div className="notification-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-                          <path d="M12 2C12 2 7 7.5 7 12C7 14.7614 9.23858 17 12 17C14.7614 17 17 14.7614 17 12C17 7.5 12 2 12 2Z" fill={!notif.read ? '#e63946' : '#ccc'}/>
-                        </svg>
-                      </div>
-                      <div className="notification-content">
-                        <p>{notif.message}</p>
-                        <span className="notification-time">{notif.time}</span>
-                      </div>
+                <div className="notification-list">
+                  {notifications.length === 0 ? (
+                    <div className="no-notifications">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                      </svg>
+                      <p>No notifications yet</p>
                     </div>
-                  ))
-                )}
+                  ) : (
+                    notifications.map(notif => (
+                      <div 
+                        key={notif.id} 
+                        className={`notification-item ${notif.read ? 'read' : 'unread'}`}
+                        onClick={() => markAsRead(notif.id)}
+                      >
+                        <div className="notification-icon">
+                          {notif.type === 'blood-bank' ? (
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                            </svg>
+                          ) : (
+                            <svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M10 2C10 2 5 7.5 5 12C5 14.7614 7.23858 17 10 17C12.7614 17 15 14.7614 15 12C15 7.5 10 2 10 2Z"/>
+                            </svg>
+                          )}
+                        </div>
+                        <div className="notification-content">
+                          <h4>{notif.title}</h4>
+                          <p>{notif.message}</p>
+                          <span className="notification-time">
+                            {new Date(notif.timestamp).toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        {!notif.read && <div className="unread-dot"></div>}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
+          
           <div className="profile-dropdown" onMouseLeave={() => setShowDropdown(false)}>
             <button 
               className="btn btn-outline profile-btn"
@@ -123,7 +252,7 @@ const Navbar = () => {
                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
                 <circle cx="12" cy="7" r="4"/>
               </svg>
-              {user?.name || 'Profile'}
+              <span className="user-name-text">{user?.name || 'Profile'}</span>
             </button>
             {showDropdown && (
               <div className="dropdown-menu">
@@ -134,15 +263,17 @@ const Navbar = () => {
                   </svg>
                   My Profile
                 </Link>
-                <Link to="/donor-form" className="dropdown-item">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="12" y1="18" x2="12" y2="12"/>
-                    <line x1="9" y1="15" x2="15" y2="15"/>
-                  </svg>
-                  Donor Form
-                </Link>
+                {user?.activeMode === 'donor' && user?.isDonor && (
+                  <Link to="/donor-form" className="dropdown-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="12" y1="18" x2="12" y2="12"/>
+                      <line x1="9" y1="15" x2="15" y2="15"/>
+                    </svg>
+                    Donor Profile
+                  </Link>
+                )}
                 <div className="dropdown-divider"></div>
                 <Link to="/blood-bank/login" className="dropdown-item">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -171,118 +302,6 @@ const Navbar = () => {
           display: flex;
           align-items: center;
           gap: 1rem;
-        }
-        
-        .notification-dropdown {
-          position: relative;
-        }
-        
-        .notification-btn {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          position: relative;
-          padding: 0.5rem;
-          border-radius: 50%;
-          transition: all 0.3s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .notification-btn:hover {
-          background: rgba(230, 57, 70, 0.1);
-        }
-        
-        .notification-btn svg {
-          color: #333;
-        }
-        
-        .notification-badge {
-          position: absolute;
-          top: 0;
-          right: 0;
-          background: #e63946;
-          color: white;
-          font-size: 0.7rem;
-          font-weight: bold;
-          padding: 2px 6px;
-          border-radius: 10px;
-          min-width: 18px;
-          text-align: center;
-        }
-        
-        .notification-menu {
-          position: absolute;
-          top: 100%;
-          right: 0;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-          min-width: 320px;
-          max-height: 400px;
-          overflow-y: auto;
-          z-index: 1000;
-          animation: fadeIn 0.2s ease;
-        }
-        
-        .notification-header {
-          padding: 1rem;
-          border-bottom: 1px solid #eee;
-        }
-        
-        .notification-header h4 {
-          margin: 0;
-          font-size: 1rem;
-          color: #333;
-        }
-        
-        .notification-empty {
-          padding: 2rem;
-          text-align: center;
-          color: #999;
-        }
-        
-        .notification-item {
-          display: flex;
-          gap: 0.75rem;
-          padding: 1rem;
-          border-bottom: 1px solid #f0f0f0;
-          transition: all 0.2s;
-        }
-        
-        .notification-item:hover {
-          background: #f8f9fa;
-        }
-        
-        .notification-item.unread {
-          background: #fff5f5;
-        }
-        
-        .notification-icon {
-          flex-shrink: 0;
-          width: 36px;
-          height: 36px;
-          background: #f0f0f0;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .notification-content {
-          flex: 1;
-        }
-        
-        .notification-content p {
-          margin: 0 0 0.25rem 0;
-          font-size: 0.9rem;
-          color: #333;
-        }
-        
-        .notification-time {
-          font-size: 0.75rem;
-          color: #999;
         }
         
         .profile-dropdown {

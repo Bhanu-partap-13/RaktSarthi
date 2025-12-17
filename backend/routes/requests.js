@@ -44,22 +44,47 @@ router.post('/', auth, async (req, res) => {
   try {
     const { patientName, bloodGroup, units, urgency, hospital, contactNumber, requiredBy, description } = req.body;
 
+    // Validation
+    if (!patientName || !bloodGroup || !units || !contactNumber) {
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        required: ['patientName', 'bloodGroup', 'units', 'contactNumber'],
+        received: { patientName: !!patientName, bloodGroup: !!bloodGroup, units: !!units, contactNumber: !!contactNumber }
+      });
+    }
+
+    // Set default requiredBy if not provided (7 days from now)
+    const requestDate = requiredBy ? new Date(requiredBy) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
     const bloodRequest = new BloodRequest({
       requestedBy: req.user.userId,
       patientName,
       bloodGroup,
-      units,
-      urgency,
-      hospital,
+      units: parseInt(units),
+      urgency: urgency || 'normal',
+      hospital: hospital || { name: '', address: '' },
       contactNumber,
-      requiredBy,
-      description
+      requiredBy: requestDate,
+      description: description || ''
     });
 
     await bloodRequest.save();
-    res.status(201).json({ message: 'Blood request created successfully', request: bloodRequest });
+    
+    // Populate the requester info
+    await bloodRequest.populate('requestedBy', 'name email phone');
+    
+    res.status(201).json({ 
+      success: true,
+      message: 'Blood request created successfully', 
+      request: bloodRequest 
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Error creating blood request:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to create blood request', 
+      error: error.message 
+    });
   }
 });
 

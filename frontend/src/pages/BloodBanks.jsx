@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { bloodBankAPI } from '../services/api';
 import ImageLightbox from '../components/ImageLightbox';
+import MapModal from '../components/MapModal';
+import InventoryModal from '../components/InventoryModal';
 import './BloodBanks.css';
 
 const BloodBanks = () => {
@@ -8,6 +10,8 @@ const BloodBanks = () => {
   const [loading, setLoading] = useState(true);
   const [filterBloodGroup, setFilterBloodGroup] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [selectedBloodBank, setSelectedBloodBank] = useState(null);
 
   // Sample gallery images for blood banks
   const galleryImages = [
@@ -104,59 +108,118 @@ const BloodBanks = () => {
             <p>No blood banks found.</p>
           </div>
         ) : (
-          bloodBanks.map((bank) => (
-            <div key={bank._id} className="blood-bank-card">
-              <div className="bank-header">
-                <h2>
-                  <svg width="24" height="24" viewBox="0 0 20 20" fill="none" style={{verticalAlign: 'middle', marginRight: '8px'}}>
-                    <rect x="2" y="4" width="16" height="14" rx="1" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M10 7V14M7 10.5H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                  {bank.name}
-                </h2>
+          bloodBanks.map((bank, index) => (
+            <div 
+              key={bank._id} 
+              className="blood-bank-card"
+              onClick={() => setSelectedBloodBank(bank)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="bank-left-section">
+                <div className="bank-image-container">
+                  <img 
+                    src={bank.logo || galleryImages[index % galleryImages.length].url} 
+                    alt={bank.name} 
+                    className="bank-cover-image"
+                    onError={(e) => {
+                      e.target.src = galleryImages[0].url;
+                    }}
+                  />
+                  <div className="bank-rating">
+                    <span className="star">★</span>
+                    <span>4.8 (Verified)</span>
+                  </div>
+                </div>
               </div>
-              <div className="bank-details">
-                <p><strong>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{verticalAlign: 'middle', marginRight: '4px'}}>
-                    <path d="M3 4H17C18.1 4 19 4.9 19 6V14C19 15.1 18.1 16 17 16H3C1.9 16 1 15.1 1 14V6C1 4.9 1.9 4 3 4Z" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M19 6L10 11L1 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                  Email:</strong> {bank.email}</p>
-                <p><strong>
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{verticalAlign: 'middle', marginRight: '4px'}}>
-                    <path d="M3 2H7L9 7L6.5 8.5C7.5 10.5 9.5 12.5 11.5 13.5L13 11L18 13V17C18 18.1 17.1 19 16 19C7.716 19 1 12.284 1 4C1 2.9 1.9 2 3 2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>\n                  </svg>
-                  Phone:</strong> {bank.phone}</p>
-                <p>
-                  <strong>
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{verticalAlign: 'middle', marginRight: '4px'}}>
+
+              <div className="bank-right-section">
+                <div className="bank-header">
+                  <div className="bank-identity">
+                    <h2 className="bank-name">{bank.name}</h2>
+                    <span className="bank-type">Licensed Blood Bank Center</span>
+                  </div>
+                  <div className="bank-badges">
+                    <span className="feature-badge">
+                      <span className="dot"></span> Open 24/7
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bank-divider"></div>
+
+                <div className="bank-stats-row">
+                  <div className="stat-item">
+                    <span className="stat-icon">🩸</span>
+                    <div className="stat-info">
+                      <span className="stat-value">A+, B+, O+</span>
+                      <span className="stat-label">Available</span>
+                    </div>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-icon">🏥</span>
+                    <div className="stat-info">
+                      <span className="stat-value">Advanced</span>
+                      <span className="stat-label">Facilities</span>
+                    </div>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-icon">🚑</span>
+                    <div className="stat-info">
+                      <span className="stat-value">Emergency</span>
+                      <span className="stat-label">Services</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bank-divider"></div>
+
+                <div className="bank-details-grid">
+                  <div className="detail-item">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 4H17C18.1 4 19 4.9 19 6V14C19 15.1 18.1 16 17 16H3C1.9 16 1 15.1 1 14V6C1 4.9 1.9 4 3 4Z" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M19 6L10 11L1 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <span>{bank.email}</span>
+                  </div>
+                  <div className="detail-item">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 2H7L9 7L6.5 8.5C7.5 10.5 9.5 12.5 11.5 13.5L13 11L18 13V17C18 18.1 17.1 19 16 19C7.716 19 1 12.284 1 4C1 2.9 1.9 2 3 2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                    </svg>
+                    <span>{bank.phone}</span>
+                  </div>
+                  <div className="detail-item full-width">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                       <path d="M10 2C7.5 2 5 4 5 7C5 11 10 18 10 18C10 18 15 11 15 7C15 4 12.5 2 10 2Z" stroke="currentColor" strokeWidth="2"/>
                       <circle cx="10" cy="7" r="2" stroke="currentColor" strokeWidth="2"/>
                     </svg>
-                    Address:</strong> {bank.address?.street}, {bank.address?.city}, {bank.address?.state} - {bank.address?.pincode}
-                </p>
-                {bank.operatingHours && (
-                  <p><strong>
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{verticalAlign: 'middle', marginRight: '4px'}}>
-                      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M10 6V10L13 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                    Hours:</strong> {bank.operatingHours.open} - {bank.operatingHours.close}</p>
-                )}
-              </div>
-              
-              <div className="inventory-section">
-                <h3>Blood Inventory</h3>
-                <div className="inventory-grid">
-                  {bank.inventory && bank.inventory.length > 0 ? (
-                    bank.inventory.map((item, index) => (
-                      <div key={index} className="inventory-item">
-                        <span className="blood-group-badge">{item.bloodGroup}</span>
-                        <span className="units">{item.units} units</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p>No inventory data available</p>
-                  )}
+                    <span>{bank.address?.street}, {bank.address?.city}, {bank.address?.state} - {bank.address?.pincode}</span>
+                  </div>
+                </div>
+
+                <div className="bank-actions">
+                  <div className="action-buttons">
+                    {bank.location?.coordinates && (
+                      <button 
+                        onClick={() => setSelectedLocation({ location: bank.location, name: bank.name })}
+                        className="btn-icon-only"
+                        title="View on Map"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M10 2C7.5 2 5 4 5 7C5 11 10 18 10 18C10 18 15 11 15 7C15 4 12.5 2 10 2Z" stroke="currentColor" strokeWidth="2"/>
+                          <circle cx="10" cy="7" r="2" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                      </button>
+                    )}
+                    <button className="btn-contact">
+                      Contact Now
+                    </button>
+                    <button 
+                      className="btn-view-inventory"
+                      onClick={() => setSelectedBloodBank(bank)}
+                    >
+                      View Inventory
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -168,6 +231,21 @@ const BloodBanks = () => {
         <ImageLightbox 
           image={selectedImage} 
           onClose={() => setSelectedImage(null)} 
+        />
+      )}
+      
+      {selectedLocation && (
+        <MapModal 
+          location={selectedLocation.location}
+          name={selectedLocation.name}
+          onClose={() => setSelectedLocation(null)}
+        />
+      )}
+
+      {selectedBloodBank && (
+        <InventoryModal
+          bloodBank={selectedBloodBank}
+          onClose={() => setSelectedBloodBank(null)}
         />
       )}
     </div>

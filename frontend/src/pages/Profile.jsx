@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ToastContainer';
 import './Profile.css';
 
 const Profile = () => {
+  const { setUser: setAuthUser } = useAuth();
+  const toast = useToast();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState('');
+  const [profileImage, setProfileImage] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -23,6 +30,7 @@ const Profile = () => {
 
   useEffect(() => {
     fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProfile = async () => {
@@ -38,6 +46,12 @@ const Profile = () => {
         isAvailable: response.data.isAvailable ?? true,
         address: response.data.address || { street: '', city: '', state: '', pincode: '' },
       });
+
+      // Load profile image from localStorage
+      const savedImage = localStorage.getItem(`userPhoto_${response.data._id}`);
+      if (savedImage) {
+        setPreviewImage(savedImage);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -65,16 +79,71 @@ const Profile = () => {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage('Image size should be less than 5MB');
+        setTimeout(() => setMessage(''), 3000);
+        return;
+      }
+      setProfileImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!profileImage) {
+      setMessage('Please select an image first');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    
+    try {
+      setUploadingImage(true);
+      
+      // Save to localStorage for now
+      const userId = user?._id || 'default';
+      localStorage.setItem(`userPhoto_${userId}`, previewImage);
+      
+      // TODO: Add API endpoint for image upload when backend is ready
+      // const formData = new FormData();
+      // formData.append('profilePicture', profileImage);
+      // await userAPI.uploadProfilePicture(formData);
+      
+      setMessage('Profile picture updated successfully!');
+      setProfileImage(null);
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setMessage('Failed to upload image. Please try again.');
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await userAPI.updateProfile(formData);
+      const response = await userAPI.updateProfile(formData);
       setMessage('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
       setEditing(false);
-      fetchProfile();
+      
+      // Update both local state and global auth context
+      const updatedUser = response.data.user;
+      setUser(updatedUser);
+      setAuthUser(updatedUser);
+      
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       setMessage('Failed to update profile');
+      toast.error('Failed to update profile. Please try again.');
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -89,11 +158,37 @@ const Profile = () => {
     <div className="page-container">
       <div className="profile-container">
         <div className="profile-header">
-          <div className="profile-avatar">
-            <svg width="64" height="64" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
-              <path d="M3 19C3 15.134 6.13401 12 10 12C13.866 12 17 15.134 17 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+          <div className="profile-avatar-wrapper">
+            <div className="profile-avatar">
+              {previewImage || user?.profilePicture ? (
+                <img src={previewImage || user?.profilePicture} alt="Profile" className="profile-image" />
+              ) : (
+                <svg width="64" height="64" viewBox="0 0 20 20" fill="none">
+                  <circle cx="10" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M3 19C3 15.134 6.13401 12 10 12C13.866 12 17 15.134 17 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              )}
+            </div>
+            <div className="avatar-upload">
+              <input
+                type="file"
+                id="profileImageInput"
+                accept="image/*"
+                onChange={handleImageChange}
+                style={{ display: 'none' }}
+              />
+              <label htmlFor="profileImageInput" className="upload-btn">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                  <path d="M17 13v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2M15 8l-5-5m0 0L5 8m5-5v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Upload Photo
+              </label>
+              {profileImage && (
+                <button onClick={handleImageUpload} className="save-image-btn" disabled={uploadingImage}>
+                  {uploadingImage ? 'Uploading...' : 'Save Photo'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="profile-header-info">
             <h1>{user?.name}</h1>
@@ -229,28 +324,98 @@ const Profile = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      name="isDonor"
-                      checked={formData.isDonor}
-                      onChange={handleChange}
-                    />
-                    <span>Register as a blood donor</span>
-                  </label>
+                  <label>Register as a blood donor</label>
+                  <div className="option-cards">
+                    <label 
+                      className={`option-card ${formData.isDonor === true ? 'selected' : ''}`}
+                      onClick={() => setFormData({ ...formData, isDonor: true })}
+                    >
+                      <input
+                        type="radio"
+                        name="isDonor"
+                        value="true"
+                        checked={formData.isDonor === true}
+                        onChange={() => setFormData({ ...formData, isDonor: true })}
+                      />
+                      <div className="option-content">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+                        </svg>
+                        <span className="option-title">Yes</span>
+                        <small>I'm a donor</small>
+                      </div>
+                    </label>
+
+                    <label 
+                      className={`option-card ${formData.isDonor === false ? 'selected' : ''}`}
+                      onClick={() => setFormData({ ...formData, isDonor: false })}
+                    >
+                      <input
+                        type="radio"
+                        name="isDonor"
+                        value="false"
+                        checked={formData.isDonor === false}
+                        onChange={() => setFormData({ ...formData, isDonor: false })}
+                      />
+                      <div className="option-content">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="15" y1="9" x2="9" y2="15"/>
+                          <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        <span className="option-title">No</span>
+                        <small>Not a donor</small>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 {formData.isDonor && (
                   <div className="form-group">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        name="isAvailable"
-                        checked={formData.isAvailable}
-                        onChange={handleChange}
-                      />
-                      <span>Available for donation</span>
-                    </label>
+                    <label>Available for donation</label>
+                    <div className="option-cards">
+                      <label 
+                        className={`option-card ${formData.isAvailable === true ? 'selected' : ''}`}
+                        onClick={() => setFormData({ ...formData, isAvailable: true })}
+                      >
+                        <input
+                          type="radio"
+                          name="isAvailable"
+                          value="true"
+                          checked={formData.isAvailable === true}
+                          onChange={() => setFormData({ ...formData, isAvailable: true })}
+                        />
+                        <div className="option-content">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          <span className="option-title">Yes</span>
+                          <small>Ready to donate</small>
+                        </div>
+                      </label>
+
+                      <label 
+                        className={`option-card ${formData.isAvailable === false ? 'selected' : ''}`}
+                        onClick={() => setFormData({ ...formData, isAvailable: false })}
+                      >
+                        <input
+                          type="radio"
+                          name="isAvailable"
+                          value="false"
+                          checked={formData.isAvailable === false}
+                          onChange={() => setFormData({ ...formData, isAvailable: false })}
+                        />
+                        <div className="option-content">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                          </svg>
+                          <span className="option-title">No</span>
+                          <small>Not available now</small>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 )}
               </div>

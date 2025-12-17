@@ -23,6 +23,14 @@ const BloodBankSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  logo: {
+    type: String,
+    default: ''
+  },
+  imageUrl: {
+    type: String,
+    default: ''
+  },
   licenseNumber: {
     type: String,
     required: true,

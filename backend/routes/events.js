@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Event = require('../models/Event');
 
 // @route   GET /api/events
-// @desc    Get all upcoming events
+// @desc    Get all upcoming events (public and donors-only)
 // @access  Public
 router.get('/', async (req, res) => {
   try {
@@ -15,6 +15,7 @@ router.get('/', async (req, res) => {
       events = await Event.find({
         isActive: true,
         date: { $gte: new Date() },
+        visibility: { $in: ['public', 'donors-only'] },
         'location.coordinates.coordinates': {
           $near: {
             $geometry: {
@@ -24,12 +25,17 @@ router.get('/', async (req, res) => {
             $maxDistance: maxDistance ? parseInt(maxDistance) : 50000
           }
         }
-      }).sort({ date: 1 });
+      })
+      .populate('organizedBy', 'name email phone')
+      .sort({ date: 1 });
     } else {
       events = await Event.find({
         isActive: true,
-        date: { $gte: new Date() }
-      }).sort({ date: 1 });
+        date: { $gte: new Date() },
+        visibility: { $in: ['public', 'donors-only'] }
+      })
+      .populate('organizedBy', 'name email phone')
+      .sort({ date: 1 });
     }
 
     res.json(events);

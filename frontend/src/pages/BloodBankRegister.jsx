@@ -6,6 +6,9 @@ import './BloodBankAuth.css';
 const BloodBankRegister = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [location, setLocation] = useState(null);
+  const [locationShared, setLocationShared] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const [formData, setFormData] = useState({
     // Basic Info
     name: '',
@@ -13,6 +16,7 @@ const BloodBankRegister = () => {
     password: '',
     confirmPassword: '',
     phone: '',
+    logo: '',
     
     // License & Registration
     licenseNumber: '',
@@ -100,6 +104,10 @@ const BloodBankRegister = () => {
           setError('Please fill in all required fields');
           return false;
         }
+        if (!locationShared) {
+          setError('Please share your location');
+          return false;
+        }
         break;
       case 3:
         if (formData.workingDays.length === 0) {
@@ -129,6 +137,30 @@ const BloodBankRegister = () => {
     setError('');
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const loc = {
+          type: 'Point',
+          coordinates: [position.coords.longitude, position.coords.latitude]
+        };
+        setLocation(loc);
+        setLocationShared(true);
+        setGettingLocation(false);
+      },
+      (error) => {
+        setError(`Failed to get location: ${error.message}`);
+        setGettingLocation(false);
+      }
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateStep()) return;
@@ -143,7 +175,8 @@ const BloodBankRegister = () => {
           open: formData.openTime,
           close: formData.closeTime,
           days: formData.workingDays
-        }
+        },
+        location: location || undefined
       };
       
       console.log('Submitting blood bank registration:', submitData);
@@ -235,6 +268,25 @@ const BloodBankRegister = () => {
           onChange={handleChange}
           placeholder="Enter phone number"
           required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          Logo URL (Optional)
+        </label>
+        <input
+          type="url"
+          id="logo"
+          name="logo"
+          value={formData.logo}
+          onChange={handleChange}
+          placeholder="https://example.com/logo.png"
         />
       </div>
 
@@ -401,6 +453,54 @@ const BloodBankRegister = () => {
           />
         </div>
       </div>
+
+      <div className="form-group location-section">
+        <label>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          Share Location (Required) *
+        </label>
+        <button
+          type="button"
+          className={`btn-location ${locationShared ? 'shared' : ''}`}
+          onClick={handleGetLocation}
+          disabled={gettingLocation}
+        >
+          {gettingLocation ? (
+            <>
+              <span className="spinner-small"></span>
+              Getting Location...
+            </>
+          ) : locationShared ? (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Location Shared
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+              Share My Location
+            </>
+          )}
+        </button>
+        {locationShared && location && (
+          <div className="location-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>
+              Location: {location.coordinates[1].toFixed(6)}, {location.coordinates[0].toFixed(6)}
+            </span>
+          </div>
+        )}
+      </div>
     </>
   );
 
@@ -494,7 +594,8 @@ const BloodBankRegister = () => {
   );
 
   return (
-    <div className="blood-bank-auth-container">
+    <div className="login-page-wrapper">
+      <div className="blood-bank-auth-container">
       <div className="auth-left-panel">
         <div className="auth-branding">
           <div className="auth-logo">
@@ -676,6 +777,7 @@ const BloodBankRegister = () => {
           box-shadow: none !important;
         }
       `}</style>
+      </div>
     </div>
   );
 };

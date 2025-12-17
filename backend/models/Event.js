@@ -13,9 +13,18 @@ const EventSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  organizedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'organizerModel'
+  },
+  organizerModel: {
+    type: String,
+    enum: ['User', 'BloodBank'],
+    default: 'User'
+  },
   eventType: {
     type: String,
-    enum: ['blood-drive', 'awareness', 'donation-camp'],
+    enum: ['blood-drive', 'awareness', 'donation-camp', 'health-checkup'],
     default: 'blood-drive'
   },
   location: {
@@ -60,10 +69,25 @@ const EventSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  visibility: {
+    type: String,
+    enum: ['public', 'donors-only', 'patients-only'],
+    default: 'public'
+  },
+  maxParticipants: {
+    type: Number,
+    default: 100
+  },
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Event', EventSchema);

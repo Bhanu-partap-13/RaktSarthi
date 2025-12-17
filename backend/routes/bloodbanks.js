@@ -3,10 +3,11 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const BloodBank = require('../models/BloodBank');
+const Inventory = require('../models/Inventory');
 
 // Generate JWT Token for Blood Bank
 const generateToken = (id) => {
-  return jwt.sign({ id, type: 'bloodbank' }, process.env.JWT_SECRET, {
+  return jwt.sign({ bloodBankId: id, type: 'bloodbank' }, process.env.JWT_SECRET, {
     expiresIn: '30d'
   });
 };
@@ -24,7 +25,7 @@ const protectBloodBank = async (req, res, next) => {
         return res.status(401).json({ message: 'Not authorized as blood bank' });
       }
       
-      req.bloodBank = await BloodBank.findById(decoded.id).select('-password');
+      req.bloodBank = await BloodBank.findById(decoded.bloodBankId).select('-password');
       next();
     } catch (error) {
       return res.status(401).json({ message: 'Not authorized, token failed' });
@@ -59,7 +60,9 @@ router.post('/register', async (req, res) => {
       services,
       contactPersonName,
       contactPersonPhone,
-      contactPersonEmail
+      contactPersonEmail,
+      location,
+      logo
     } = req.body;
 
     // Validate required fields
@@ -116,7 +119,10 @@ router.post('/register', async (req, res) => {
         phone: contactPersonPhone,
         email: contactPersonEmail
       },
-      inventory: initialInventory
+      inventory: initialInventory,
+      location: location || undefined,
+      logo: logo || '',
+      imageUrl: logo || ''
     });
 
     await bloodBank.save();
@@ -170,7 +176,8 @@ router.post('/login', async (req, res) => {
         address: bloodBank.address,
         operatingHours: bloodBank.operatingHours,
         services: bloodBank.services,
-        isVerified: bloodBank.isVerified
+        isVerified: bloodBank.isVerified,
+        inventory: bloodBank.inventory || []
       }
     });
   } catch (error) {
@@ -286,15 +293,27 @@ router.get('/', async (req, res) => {
       bloodBanks = await BloodBank.find({ isActive: true });
     }
 
+    // Fetch inventory for each blood bank from Inventory collection
+    const bloodBanksWithInventory = await Promise.all(
+      bloodBanks.map(async (bank) => {
+        const bankObj = bank.toObject();
+        const inventory = await Inventory.findOne({ bloodBank: bank._id });
+        bankObj.inventory = inventory?.items || [];
+        return bankObj;
+      })
+    );
+
     // Filter by blood group availability if specified
+    let filteredBanks = bloodBanksWithInventory;
     if (bloodGroup) {
-      bloodBanks = bloodBanks.filter(bank => 
+      filteredBanks = bloodBanksWithInventory.filter(bank => 
         bank.inventory.some(item => item.bloodGroup === bloodGroup && item.units > 0)
       );
     }
 
-    res.json(bloodBanks);
+    res.json(filteredBanks);
   } catch (error) {
+    console.error('Error fetching blood banks:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -308,8 +327,15 @@ router.get('/:id', async (req, res) => {
     if (!bloodBank) {
       return res.status(404).json({ message: 'Blood bank not found' });
     }
-    res.json(bloodBank);
+    
+    // Fetch inventory from Inventory collection
+    const bankObj = bloodBank.toObject();
+    const inventory = await Inventory.findOne({ bloodBank: bloodBank._id });
+    bankObj.inventory = inventory?.items || [];
+    
+    res.json(bankObj);
   } catch (error) {
+    console.error('Error fetching blood bank:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

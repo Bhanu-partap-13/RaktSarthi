@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { eventAPI } from '../services/api';
+import { eventAPI, bloodCampAPI } from '../services/api';
 import api from '../services/api';
 import './Events.css';
 
@@ -9,99 +9,46 @@ const Events = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
+    // Get current user ID from localStorage
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setCurrentUserId(user.id || user._id);
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
     fetchAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      // Fetch regular events
-      const eventsResponse = await eventAPI.getAll();
-      setEvents(eventsResponse.data);
       
-      // Fetch blood camps from blood banks
-      try {
-        const campsResponse = await api.get('/blood-camps');
-        setBloodCamps(campsResponse.data);
-      } catch (error) {
-        // If blood camps API doesn't exist yet, use sample data
-        setBloodCamps([
-          {
-            _id: 'camp1',
-            name: 'LPU Blood Donation Camp',
-            date: '2024-02-15',
-            startTime: '09:00',
-            endTime: '17:00',
-            venue: 'Lovely Professional University',
-            address: 'Jalandhar-Delhi G.T. Road, Phagwara',
-            city: 'Phagwara',
-            targetUnits: 200,
-            organizer: 'LPU Health Center',
-            description: 'Annual mega blood donation camp at LPU. Open for all students, staff and nearby residents. Refreshments and certificates provided!',
-            status: 'upcoming'
-          },
-          {
-            _id: 'camp2',
-            name: 'Jalandhar Civil Hospital Camp',
-            date: '2024-02-20',
-            startTime: '10:00',
-            endTime: '16:00',
-            venue: 'Civil Hospital Jalandhar',
-            address: 'GT Road, Near Bus Stand, Jalandhar',
-            city: 'Jalandhar',
-            targetUnits: 150,
-            organizer: 'Jalandhar Blood Bank',
-            description: 'Blood donation camp organized by Civil Hospital Jalandhar. All blood types urgently needed.',
-            status: 'scheduled'
-          },
-          {
-            _id: 'camp3',
-            name: 'Phagwara Community Blood Drive',
-            date: '2024-02-25',
-            startTime: '09:00',
-            endTime: '15:00',
-            venue: 'Phagwara Community Hall',
-            address: 'Near Railway Station, Phagwara',
-            city: 'Phagwara',
-            targetUnits: 100,
-            organizer: 'Red Cross Phagwara',
-            description: 'Community blood donation drive for Phagwara residents. Join us to save lives!',
-            status: 'upcoming'
-          },
-          {
-            _id: 'camp4',
-            name: 'LPU NSS Blood Camp',
-            date: '2024-03-01',
-            startTime: '10:00',
-            endTime: '16:00',
-            venue: 'Block 34, LPU Campus',
-            address: 'Lovely Professional University, Phagwara',
-            city: 'Phagwara',
-            targetUnits: 100,
-            organizer: 'NSS Wing LPU',
-            description: 'Blood donation camp organized by NSS volunteers of LPU. Free health checkup for all donors.',
-            status: 'upcoming'
-          },
-          {
-            _id: 'camp5',
-            name: 'Jalandhar Rotary Blood Camp',
-            date: '2024-03-05',
-            startTime: '09:00',
-            endTime: '14:00',
-            venue: 'Rotary Club Jalandhar',
-            address: 'Model Town, Jalandhar',
-            city: 'Jalandhar',
-            targetUnits: 75,
-            organizer: 'Rotary Club Jalandhar',
-            description: 'Monthly blood donation initiative by Rotary Club. Certificates and refreshments provided.',
-            status: 'scheduled'
-          }
-        ]);
-      }
+      // Fetch blood camps from BloodCamp collection
+      const campsResponse = await bloodCampAPI.getAll({ upcoming: true });
+      const camps = campsResponse.data || [];
+      console.log('Fetched blood camps:', camps);
+      setBloodCamps(camps);
+      
+      // Fetch all events (awareness events, etc.)
+      const eventsResponse = await eventAPI.getAll();
+      const allEvents = eventsResponse.data || [];
+      
+      // Filter out donation-camp events (we're getting camps from BloodCamp collection now)
+      const regularEvents = allEvents.filter(event => event.eventType !== 'donation-camp');
+      console.log('Fetched events:', regularEvents);
+      setEvents(regularEvents);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Use empty arrays on error
+      setEvents([]);
+      setBloodCamps([]);
     } finally {
       setLoading(false);
     }
@@ -119,13 +66,24 @@ const Events = () => {
     }
   };
 
+  const isRegisteredForCamp = (camp) => {
+    if (!currentUserId || !camp.registeredDonors) return false;
+    return camp.registeredDonors.some(
+      donor => donor.donor === currentUserId || donor.donor?._id === currentUserId
+    );
+  };
+
   const handleCampRegister = async (campId) => {
     try {
-      await api.post(`/blood-camps/${campId}/register`);
+      console.log('Registering for blood camp:', campId);
+      // Register for blood camp using bloodCampAPI
+      await bloodCampAPI.register(campId, {});
       setMessage('Successfully registered for the blood camp!');
+      fetchAllData(); // Refresh data
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
-      setMessage('Registration successful! We will contact you soon.');
+      console.error('Registration error:', error);
+      setMessage(error.response?.data?.message || 'Registration failed. Please try again.');
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -244,7 +202,7 @@ const Events = () => {
                       <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
                       <polyline points="9 22 9 12 15 12 15 22"/>
                     </svg>
-                    <span>{camp.organizer}</span>
+                    <span>{camp.organizerName || camp.organizer?.name || 'Blood Bank'}</span>
                   </div>
                 </div>
                 
@@ -255,15 +213,28 @@ const Events = () => {
                 
                 <button
                   onClick={() => handleCampRegister(camp._id)}
-                  className="btn btn-primary btn-block"
+                  className={`btn btn-block ${
+                    isRegisteredForCamp(camp) ? 'btn-success' : 'btn-primary'
+                  }`}
+                  disabled={isRegisteredForCamp(camp)}
+                  style={{
+                    cursor: isRegisteredForCamp(camp) ? 'not-allowed' : 'pointer',
+                    opacity: isRegisteredForCamp(camp) ? 0.7 : 1
+                  }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                    <circle cx="8.5" cy="7" r="4"/>
-                    <line x1="20" y1="8" x2="20" y2="14"/>
-                    <line x1="23" y1="11" x2="17" y2="11"/>
+                    {isRegisteredForCamp(camp) ? (
+                      <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                    ) : (
+                      <>
+                        <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                      </>
+                    )}
                   </svg>
-                  Register for Camp
+                  {isRegisteredForCamp(camp) ? 'Already Registered' : 'Register for Camp'}
                 </button>
               </div>
             ))}

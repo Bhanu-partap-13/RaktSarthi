@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ToastContainer';
 import { requestAPI } from '../services/api';
 import './CreateRequest.css';
 
 const CreateRequest = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -53,11 +55,13 @@ const CreateRequest = () => {
     try {
       await requestAPI.create(formData);
       setSuccess('Blood request created successfully!');
+      toast.success('Blood request created successfully! Help is on the way.');
       setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create request');
+      toast.error(error.response?.data?.message || 'Failed to create blood request. Please try again.');
     } finally {
       setLoading(false);
     }

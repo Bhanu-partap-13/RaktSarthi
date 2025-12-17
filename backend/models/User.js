@@ -47,6 +47,11 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  activeMode: {
+    type: String,
+    enum: ['donor', 'patient'],
+    default: 'patient'
+  },
   address: {
     street: String,
     city: String,
@@ -77,7 +82,8 @@ const UserSchema = new mongoose.Schema({
     dateOfBirth: Date,
     gender: String,
     lastDonationDate: Date,
-    donationCount: Number,
+    donationCount: { type: Number, default: 0 },
+    totalDonations: { type: Number, default: 0 },
     bloodPressure: String,
     hemoglobinLevel: Number,
     diseases: {
@@ -90,7 +96,10 @@ const UserSchema = new mongoose.Schema({
       diabetes: Boolean,
       cancer: Boolean,
       bloodDisorder: Boolean,
-      epilepsy: Boolean
+      epilepsy: Boolean,
+      asthma: Boolean,
+      kidneyDisease: Boolean,
+      liverDisease: Boolean
     },
     recentConditions: {
       fever: Boolean,
