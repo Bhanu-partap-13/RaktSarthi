@@ -69,6 +69,14 @@ const UserSchema = new mongoose.Schema({
       default: [0, 0]
     }
   },
+  aadharCard: {
+    imageUrl: String,
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    uploadedAt: Date
+  },
   lastDonationDate: {
     type: Date
   },

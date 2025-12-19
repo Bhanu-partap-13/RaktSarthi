@@ -405,3 +405,45 @@
     font-size: 1.4rem;
   }
 }
+
+@media (max-width: 480px) {
+  .bank-left-section {
+    height: 160px;
+  }
+
+  .bank-right-section {
+    padding: 1rem;
+  }
+
+  .bank-name {
+    font-size: 1.2rem;
+  }
+
+  .bank-stat-item {
+    padding: 0.5rem;
+    min-width: 60px;
+  }
+
+  .bank-stat-value {
+    font-size: 1rem;
+  }
+
+  .bank-stat-label {
+    font-size: 0.7rem;
+  }
+
+  .detail-item {
+    font-size: 0.8rem;
+    padding: 0.4rem;
+  }
+
+  .bank-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .bank-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

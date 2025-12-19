@@ -171,6 +171,129 @@
   font-weight: bold;
 }
 
+/* Aadhar Section */
+.aadhar-section {
+  background: linear-gradient(135deg, #fef9f9 0%, #fff5f5 100%);
+}
+
+.aadhar-section .section-description {
+  color: #666;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.aadhar-upload-container {
+  max-width: 500px;
+}
+
+.aadhar-upload-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  border: 2px dashed #d62828;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.aadhar-upload-box:hover {
+  border-color: #e63946;
+  background: #fef9f9;
+  transform: translateY(-2px);
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.upload-placeholder svg {
+  color: #d62828;
+}
+
+.upload-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.upload-hint {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.aadhar-preview-container {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.aadhar-preview-image {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  display: block;
+}
+
+.aadhar-preview-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.aadhar-preview-container:hover .aadhar-preview-overlay {
+  opacity: 1;
+}
+
+.btn-remove-aadhar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-remove-aadhar:hover {
+  background: #b91c1c;
+  transform: scale(1.05);
+}
+
+.aadhar-uploaded-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #10b981;
+  color: white;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
 /* Consent Section */
 .consent-section {
   background: #fef9f9;
@@ -359,5 +482,46 @@
 
   .form-actions .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .donor-form-container {
+    padding: 0.75rem;
+  }
+
+  .donor-form-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .donor-form-header p {
+    font-size: 0.9rem;
+  }
+
+  .form-section {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
+  .form-section h2 {
+    font-size: 1.1rem;
+  }
+
+  .form-group label {
+    font-size: 0.9rem;
+  }
+
+  .form-control {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .checkbox-group label {
+    font-size: 0.9rem;
+  }
+
+  .form-actions .btn {
+    padding: 0.75rem;
+    font-size: 0.95rem;
   }
 }

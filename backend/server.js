@@ -11,19 +11,7 @@ dotenv.config();
 
 const app = express();
 
-// Security middleware
-app.use(helmet()); // Set security headers
-app.use(mongoSanitize()); // Prevent MongoDB injection
-
-// Rate limiting - prevent brute force attacks
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
-
-// CORS configuration - allow localhost for development
+// CORS configuration - MUST be applied before other middleware
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -53,6 +41,18 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
+
+// Security middleware
+app.use(helmet()); // Set security headers
+app.use(mongoSanitize()); // Prevent MongoDB injection
+
+// Rate limiting - prevent brute force attacks
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Increased limit for polling requests
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
 
 // Body parser with size limits to prevent large payload attacks
 app.use(express.json({ limit: '10mb' }));

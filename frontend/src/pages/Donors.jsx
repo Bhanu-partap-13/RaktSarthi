@@ -15,11 +15,21 @@ const Donors = () => {
   const [donorPhotos, setDonorPhotos] = useState({});
   const { user } = useAuth();
 
+  // Helper function to check if a donor has valid location
+  const hasValidLocation = (donor) => {
+    if (!donor?.location?.coordinates) return false;
+    if (!Array.isArray(donor.location.coordinates)) return false;
+    if (donor.location.coordinates.length !== 2) return false;
+    const [lng, lat] = donor.location.coordinates;
+    return (lng !== 0 || lat !== 0) && !isNaN(lng) && !isNaN(lat);
+  };
+
   const fetchDonors = useCallback(async () => {
     try {
       setLoading(true);
       const params = filterBloodGroup ? { bloodGroup: filterBloodGroup } : {};
       const response = await userAPI.getDonors(params);
+      console.log('Donors data:', response.data); // Debug log
       setDonors(response.data);
       
       // Load photos from localStorage for each donor
@@ -127,17 +137,34 @@ const Donors = () => {
                       <circle cx="9" cy="7" r="4"/>
                       <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
                     </svg>
-                    <span className="stat-value">{donor.totalDonations || Math.floor(Math.random() * 20) + 5}</span>
+                    <span className="stat-value">{donor.donorInfo?.totalDonations || donor.totalDonations || 0}</span>
                   </div>
 
                   <div className="stat-item-card">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
                     </svg>
-                    <span className="stat-value">{donor.eventsAttended || Math.floor(Math.random() * 15) + 3}</span>
+                    <span className="stat-value">{donor.donorInfo?.eventsAttended || donor.eventsAttended || 0}</span>
                   </div>
 
                   <span className="blood-group-badge-card">{donor.bloodGroup}</span>
+
+                  {/* Location Button - Show if donor has valid coordinates */}
+                  {hasValidLocation(donor) && (
+                    <button 
+                      className="location-btn-card"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLocation({ location: donor.location, name: donor.name });
+                      }}
+                      title="View Location"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                        <circle cx="12" cy="7" r="2"/>
+                      </svg>
+                    </button>
+                  )}
 
                   <button 
                     className="contact-btn-card"
@@ -247,6 +274,30 @@ const Donors = () => {
                   </svg>
                   Send Email
                 </a>
+                {hasValidLocation(selectedDonor) ? (
+                  <button 
+                    className="btn-location"
+                    onClick={() => {
+                      setShowContactModal(false);
+                      setSelectedLocation({ location: selectedDonor.location, name: selectedDonor.name });
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                      <circle cx="12" cy="7" r="2"/>
+                    </svg>
+                    View on Map
+                  </button>
+                ) : (
+                  <span className="location-not-shared">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                      <circle cx="12" cy="7" r="2"/>
+                      <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/>
+                    </svg>
+                    Location not shared
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -383,3 +383,38 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .events-page {
+    padding: 1rem;
+  }
+
+  .events-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .events-tabs {
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+
+  .tab-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .camp-card,
+  .event-card {
+    padding: 1rem;
+  }
+
+  .camp-card h3,
+  .event-card h3 {
+    font-size: 1.1rem;
+  }
+
+  .btn-register {
+    width: 100%;
+    justify-content: center;
+  }
+}

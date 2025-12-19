@@ -159,3 +159,8 @@
 **Created**: January 2025  
 **Version**: 1.0  
 **Status**: ✅ Complete and Functional
+
+
+There is the bug in the blood bank portal where you are not able tp scroll in the webpage, improve the alignment of "Quick Registration Process
+Verified & Secure Platform
+Large Donor" and make the fully blood bank portal responsive and add toasts.  

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useToast } from '../components/ToastContainer';
 import './BloodBankAuth.css';
 
 const BloodBankRegister = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [step, setStep] = useState(1);
   const [location, setLocation] = useState(null);
   const [locationShared, setLocationShared] = useState(false);
@@ -96,26 +98,31 @@ const BloodBankRegister = () => {
         }
         if (formData.password.length < 6) {
           setError('Password must be at least 6 characters');
+          toast.error('Password must be at least 6 characters');
           return false;
         }
         break;
       case 2:
         if (!formData.licenseNumber || !formData.address || !formData.city || !formData.state || !formData.pincode) {
           setError('Please fill in all required fields');
+          toast.error('Please fill in all required fields');
           return false;
         }
         if (!locationShared) {
           setError('Please share your location');
+          toast.warning('Please share your location');
           return false;
         }
         break;
       case 3:
         if (formData.workingDays.length === 0) {
           setError('Please select at least one working day');
+          toast.error('Please select at least one working day');
           return false;
         }
         if (formData.services.length === 0) {
           setError('Please select at least one service');
+          toast.error('Please select at least one service');
           return false;
         }
         break;
@@ -129,6 +136,7 @@ const BloodBankRegister = () => {
   const nextStep = () => {
     if (validateStep()) {
       setStep(step + 1);
+      toast.info(`Step ${step + 1} of 3`);
     }
   };
 
@@ -140,6 +148,7 @@ const BloodBankRegister = () => {
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
+      toast.error('Geolocation is not supported by your browser');
       return;
     }
 
@@ -153,9 +162,11 @@ const BloodBankRegister = () => {
         setLocation(loc);
         setLocationShared(true);
         setGettingLocation(false);
+        toast.success('Location captured successfully!');
       },
-      (error) => {
-        setError(`Failed to get location: ${error.message}`);
+      (err) => {
+        setError(`Failed to get location: ${err.message}`);
+        toast.error(`Failed to get location: ${err.message}`);
         setGettingLocation(false);
       }
     );
@@ -182,11 +193,13 @@ const BloodBankRegister = () => {
       console.log('Submitting blood bank registration:', submitData);
       const response = await api.post('/blood-banks/register', submitData);
       console.log('Registration response:', response.data);
+      toast.success('Registration successful! Please login.');
       navigate('/blood-bank/login', { state: { message: 'Registration successful! Please login.' } });
     } catch (err) {
       console.error('Registration error:', err.response?.data || err.message);
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Registration failed. Please try again.';
       setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

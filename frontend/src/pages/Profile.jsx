@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastContainer';
+import MapModal from '../components/MapModal';
 import './Profile.css';
 
 const Profile = () => {
@@ -14,6 +15,8 @@ const Profile = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -26,6 +29,7 @@ const Profile = () => {
       state: '',
       pincode: '',
     },
+    location: null,
   });
 
   useEffect(() => {
@@ -45,6 +49,7 @@ const Profile = () => {
         isDonor: response.data.isDonor || false,
         isAvailable: response.data.isAvailable ?? true,
         address: response.data.address || { street: '', city: '', state: '', pincode: '' },
+        location: response.data.location || null,
       });
 
       // Load profile image from localStorage
@@ -57,6 +62,37 @@ const Profile = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        setFormData({
+          ...formData,
+          location: {
+            type: 'Point',
+            coordinates: [coords.longitude, coords.latitude]
+          }
+        });
+        setGettingLocation(false);
+        toast.success('Location captured successfully!');
+      },
+      (error) => {
+        setGettingLocation(false);
+        toast.error(`Unable to retrieve location: ${error.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   const handleChange = (e) => {
@@ -265,6 +301,46 @@ const Profile = () => {
                   </div>
                 </div>
               )}
+
+              {/* Location Section */}
+              <div className="profile-section">
+                <h2>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign: 'middle', marginRight: '8px'}}>
+                    <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                    <circle cx="12" cy="7" r="2"/>
+                  </svg>
+                  My Location
+                </h2>
+                {user?.location?.coordinates && user.location.coordinates[0] !== 0 && user.location.coordinates[1] !== 0 ? (
+                  <div className="location-info-card">
+                    <div className="location-coords">
+                      <span className="coord-label">Latitude:</span>
+                      <span className="coord-value">{user.location.coordinates[1].toFixed(6)}</span>
+                      <span className="coord-label">Longitude:</span>
+                      <span className="coord-value">{user.location.coordinates[0].toFixed(6)}</span>
+                    </div>
+                    <button 
+                      className="btn-view-map"
+                      onClick={() => setShowMapModal(true)}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                        <circle cx="12" cy="7" r="2"/>
+                      </svg>
+                      View on Map
+                    </button>
+                  </div>
+                ) : (
+                  <div className="no-location-card">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5">
+                      <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                      <circle cx="12" cy="7" r="2"/>
+                    </svg>
+                    <p>No location shared yet</p>
+                    <small>Edit your profile to share your location</small>
+                  </div>
+                )}
+              </div>
 
               <button className="btn btn-primary" onClick={() => setEditing(true)}>
                 Edit Profile
@@ -476,6 +552,57 @@ const Profile = () => {
                 </div>
               </div>
 
+              {/* Location Section in Edit Mode */}
+              <div className="profile-section">
+                <h2>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign: 'middle', marginRight: '8px'}}>
+                    <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                    <circle cx="12" cy="7" r="2"/>
+                  </svg>
+                  Share Your Location
+                </h2>
+                <p className="location-help-text">
+                  Share your location so patients can find nearby donors easily.
+                </p>
+                
+                <div className="location-capture-section">
+                  <button 
+                    type="button"
+                    className={`btn-capture-location ${formData.location ? 'has-location' : ''}`}
+                    onClick={handleGetLocation}
+                    disabled={gettingLocation}
+                  >
+                    {gettingLocation ? (
+                      <>
+                        <span className="spinner-small"></span>
+                        Getting Location...
+                      </>
+                    ) : formData.location ? (
+                      <>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Location Captured - Click to Update
+                      </>
+                    ) : (
+                      <>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                          <circle cx="12" cy="7" r="2"/>
+                        </svg>
+                        Capture My Location
+                      </>
+                    )}
+                  </button>
+                  
+                  {formData.location && (
+                    <div className="captured-location-info">
+                      <span>📍 Lat: {formData.location.coordinates[1].toFixed(6)}, Lng: {formData.location.coordinates[0].toFixed(6)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="form-actions">
                 <button
                   type="button"
@@ -492,6 +619,15 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {/* Map Modal for viewing location */}
+      {showMapModal && user?.location && (
+        <MapModal 
+          location={user.location}
+          name={user.name}
+          onClose={() => setShowMapModal(false)}
+        />
+      )}
     </div>
   );
 };

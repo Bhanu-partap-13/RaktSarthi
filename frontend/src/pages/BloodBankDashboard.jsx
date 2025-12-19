@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { requestAPI, bloodBankPortalAPI } from '../services/api';
+import { useToast } from '../components/ToastContainer';
+import MapModal from '../components/MapModal';
 import './BloodBankDashboard.css';
 
 const BloodBankDashboard = () => {
   const navigate = useNavigate();
+  const { success, error, info, warning } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [bloodBank, setBloodBank] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [inventory, setInventory] = useState([
     { type: 'A+', units: 0, status: 'critical' },
     { type: 'A-', units: 0, status: 'critical' },
@@ -59,6 +63,9 @@ const BloodBankDashboard = () => {
     description: ''
   });
   const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [gettingBankLocation, setGettingBankLocation] = useState(false);
+  const [bankLocation, setBankLocation] = useState(null);
+  const [showBankMapModal, setShowBankMapModal] = useState(false);
 
   useEffect(() => {
     // Check if blood bank is logged in
@@ -73,10 +80,24 @@ const BloodBankDashboard = () => {
     const bloodBankData = JSON.parse(data);
     setBloodBank(bloodBankData);
     
-    // Load saved photo
-    const savedPhoto = localStorage.getItem(`bloodBankPhoto_${bloodBankData.id || bloodBankData._id || 'default'}`);
-    if (savedPhoto) {
-      setPhotoPreview(savedPhoto);
+    // Load photo from blood bank data first (backend)
+    if (bloodBankData.profileImage) {
+      setPhotoPreview(bloodBankData.profileImage);
+    } else {
+      // Fallback to localStorage
+      const savedPhoto = localStorage.getItem(`bloodBankPhoto_${bloodBankData.id || bloodBankData._id || 'default'}`);
+      if (savedPhoto) {
+        setPhotoPreview(savedPhoto);
+      }
+    }
+    
+    // Load location if available
+    if (bloodBankData.location?.coordinates && 
+        (bloodBankData.location.coordinates[0] !== 0 || bloodBankData.location.coordinates[1] !== 0)) {
+      setBankLocation({
+        type: 'Point',
+        coordinates: bloodBankData.location.coordinates
+      });
     }
     
     // First try to load from localStorage immediately (no delay)
@@ -95,6 +116,9 @@ const BloodBankDashboard = () => {
     
     // Then fetch from backend (will update if different)
     fetchInventory(bloodBankData);
+    
+    // Fetch fresh profile data from backend
+    fetchBloodBankProfile();
     
     fetchDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +202,80 @@ const BloodBankDashboard = () => {
     }
   };
 
+  const fetchBloodBankProfile = async () => {
+    try {
+      const response = await bloodBankPortalAPI.getProfile();
+      const profileData = response.data.bloodBank || response.data;
+      
+      // Update photo from backend
+      if (profileData.profileImage) {
+        setPhotoPreview(profileData.profileImage);
+        // Also save to localStorage
+        const bloodBankId = profileData._id || 'default';
+        localStorage.setItem(`bloodBankPhoto_${bloodBankId}`, profileData.profileImage);
+      }
+      
+      // Update location from backend
+      if (profileData.location?.coordinates && 
+          (profileData.location.coordinates[0] !== 0 || profileData.location.coordinates[1] !== 0)) {
+        setBankLocation({
+          type: 'Point',
+          coordinates: profileData.location.coordinates
+        });
+      }
+      
+      // Update bloodBank state with latest data
+      setBloodBank(prev => ({ ...prev, ...profileData }));
+      
+      // Update localStorage
+      const existingData = JSON.parse(localStorage.getItem('bloodBankData') || '{}');
+      localStorage.setItem('bloodBankData', JSON.stringify({ ...existingData, ...profileData }));
+    } catch (err) {
+      console.error('Error fetching blood bank profile:', err);
+    }
+  };
+
+  const handleGetBankLocation = () => {
+    if (!navigator.geolocation) {
+      error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingBankLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const newLocation = {
+          type: 'Point',
+          coordinates: [position.coords.longitude, position.coords.latitude]
+        };
+        
+        try {
+          // Save to backend
+          await bloodBankPortalAPI.updateProfile({ location: newLocation });
+          
+          setBankLocation(newLocation);
+          
+          // Update localStorage
+          const bloodBankData = JSON.parse(localStorage.getItem('bloodBankData') || '{}');
+          bloodBankData.location = newLocation;
+          localStorage.setItem('bloodBankData', JSON.stringify(bloodBankData));
+          
+          success('Location captured successfully!');
+        } catch (err) {
+          console.error('Error saving location:', err);
+          error('Failed to save location. Please try again.');
+        } finally {
+          setGettingBankLocation(false);
+        }
+      },
+      (err) => {
+        setGettingBankLocation(false);
+        error(`Unable to retrieve location: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
   const fetchRequests = async () => {
     try {
       setLoadingRequests(true);
@@ -252,7 +350,7 @@ const BloodBankDashboard = () => {
 
   const fetchLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
+      error('Geolocation is not supported by your browser');
       return;
     }
     
@@ -287,13 +385,13 @@ const BloodBankDashboard = () => {
               state: data.address.state || '',
               pincode: data.address.postcode || ''
             }));
-            alert('Location fetched successfully!');
+            success('Location fetched successfully!');
           } else {
-            alert('Location coordinates captured, but address details could not be retrieved. Please enter manually.');
+            warning('Location coordinates captured, but address details could not be retrieved. Please enter manually.');
           }
-        } catch (error) {
-          console.error('Error reverse geocoding:', error);
-          alert('Location coordinates captured, but address could not be retrieved. Please enter address manually.');
+        } catch (err) {
+          console.error('Error reverse geocoding:', err);
+          warning('Location coordinates captured, but address could not be retrieved. Please enter address manually.');
         } finally {
           setFetchingLocation(false);
         }
@@ -316,7 +414,7 @@ const BloodBankDashboard = () => {
             errorMessage += 'An unknown error occurred.';
         }
         
-        alert(errorMessage);
+        error(errorMessage);
         setFetchingLocation(false);
       },
       {
@@ -400,11 +498,11 @@ const BloodBankDashboard = () => {
         
         addNotification('Donor registration removed successfully');
       }
-    } catch (error) {
-      console.error('Error deleting donor:', error);
-      console.error('Error response:', error.response?.data);
-      const errorMsg = error.response?.data?.message || 'Failed to remove donor registration';
-      alert(errorMsg);
+    } catch (err) {
+      console.error('Error deleting donor:', err);
+      console.error('Error response:', err.response?.data);
+      const errorMsg = err.response?.data?.message || 'Failed to remove donor registration';
+      error(errorMsg);
     }
   };
 
@@ -543,13 +641,13 @@ const BloodBankDashboard = () => {
 
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size should not exceed 5MB');
+      error('File size should not exceed 5MB');
       return;
     }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+      error('Please select an image file');
       return;
     }
 
@@ -565,7 +663,7 @@ const BloodBankDashboard = () => {
 
   const handlePhotoUpload = async () => {
     if (!bloodBankPhoto && !photoPreview) {
-      alert('Please select a photo first');
+      warning('Please select a photo first');
       return;
     }
 
@@ -580,10 +678,11 @@ const BloodBankDashboard = () => {
       localStorage.setItem(`bloodBankPhoto_${bloodBankId}`, photoPreview);
       
       addNotification('Hospital photo uploaded successfully!');
+      success('Hospital photo uploaded successfully!');
       setBloodBankPhoto(null);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Failed to upload photo. Please try again.');
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      error('Failed to upload photo. Please try again.');
     } finally {
       setUploadingPhoto(false);
     }
@@ -661,9 +760,10 @@ const BloodBankDashboard = () => {
         targetUnits: 100,
         description: ''
       });
-    } catch (error) {
-      console.error('Error creating camp:', error);
-      alert('Failed to create camp. Please try again.');
+      success('Blood camp created successfully!');
+    } catch (err) {
+      console.error('Error creating camp:', err);
+      error('Failed to create camp. Please try again.');
     }
   };
 
@@ -718,10 +818,23 @@ const BloodBankDashboard = () => {
     );
   }
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <div className="blood-bank-dashboard">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-menu-overlay" 
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="dashboard-sidebar">
+      <aside className={`dashboard-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -734,7 +847,7 @@ const BloodBankDashboard = () => {
         <nav className="sidebar-nav">
           <button 
             className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`}
-            onClick={() => setActiveTab('overview')}
+            onClick={() => handleTabChange('overview')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="7" height="7"/>
@@ -747,7 +860,7 @@ const BloodBankDashboard = () => {
           
           <button 
             className={`nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inventory')}
+            onClick={() => handleTabChange('inventory')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5z"/>
@@ -759,7 +872,7 @@ const BloodBankDashboard = () => {
           
           <button 
             className={`nav-item ${activeTab === 'camps' ? 'active' : ''}`}
-            onClick={() => setActiveTab('camps')}
+            onClick={() => handleTabChange('camps')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -772,7 +885,7 @@ const BloodBankDashboard = () => {
           
           <button 
             className={`nav-item ${activeTab === 'requests' ? 'active' : ''}`}
-            onClick={() => setActiveTab('requests')}
+            onClick={() => handleTabChange('requests')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -785,7 +898,7 @@ const BloodBankDashboard = () => {
           
           <button 
             className={`nav-item ${activeTab === 'bloodbanks' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bloodbanks')}
+            onClick={() => handleTabChange('bloodbanks')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
@@ -796,7 +909,7 @@ const BloodBankDashboard = () => {
           
           <button 
             className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
+            onClick={() => handleTabChange('settings')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3"/>
@@ -821,6 +934,17 @@ const BloodBankDashboard = () => {
       {/* Main Content */}
       <main className="dashboard-main">
         <header className="dashboard-header">
+          <button 
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
           <div className="header-left">
             <h1>
               {activeTab === 'overview' && 'Dashboard Overview'}
@@ -1483,6 +1607,100 @@ const BloodBankDashboard = () => {
                     </div>
                     <p className="photo-help-text">Recommended: 800x600px, Max size: 5MB</p>
                   </div>
+                </div>
+              </div>
+
+              {/* Hospital Location Section */}
+              <div className="settings-section">
+                <h3>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                    <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                    <circle cx="12" cy="7" r="2"/>
+                  </svg>
+                  Hospital Location
+                </h3>
+                <div className="settings-form">
+                  {bankLocation?.coordinates && 
+                   (bankLocation.coordinates[0] !== 0 || bankLocation.coordinates[1] !== 0) ? (
+                    <div className="location-info-display">
+                      <div className="location-status location-saved">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                          <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        <span>Location saved</span>
+                      </div>
+                      <p className="coordinates-display">
+                        <strong>Coordinates:</strong> {bankLocation.coordinates[1].toFixed(6)}, {bankLocation.coordinates[0].toFixed(6)}
+                      </p>
+                      <div className="location-actions">
+                        <button 
+                          type="button"
+                          className="btn-view-location"
+                          onClick={() => setShowBankMapModal(true)}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                          View on Map
+                        </button>
+                        <button 
+                          type="button"
+                          className="btn-update-location"
+                          onClick={handleGetBankLocation}
+                          disabled={gettingBankLocation}
+                        >
+                          {gettingBankLocation ? (
+                            <>
+                              <span className="spinner-small"></span>
+                              Updating...
+                            </>
+                          ) : (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                              </svg>
+                              Update Location
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="no-location-display">
+                      <div className="no-location-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M12 2C9.5 2 7 4 7 7C7 11 12 18 12 18C12 18 17 11 17 7C17 4 14.5 2 12 2Z"/>
+                          <circle cx="12" cy="7" r="2"/>
+                          <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <p>No location set. Share your hospital location so patients can find you easily.</p>
+                      <button 
+                        type="button"
+                        className="btn-capture-location"
+                        onClick={handleGetBankLocation}
+                        disabled={gettingBankLocation}
+                      >
+                        {gettingBankLocation ? (
+                          <>
+                            <span className="spinner-small"></span>
+                            Getting Location...
+                          </>
+                        ) : (
+                          <>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                              <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            Capture Current Location
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2168,6 +2386,15 @@ const BloodBankDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Map Modal for Blood Bank Location */}
+      {showBankMapModal && bankLocation && (
+        <MapModal
+          location={bankLocation}
+          name={bloodBank?.name || 'Hospital Location'}
+          onClose={() => setShowBankMapModal(false)}
+        />
       )}
     </div>
   );

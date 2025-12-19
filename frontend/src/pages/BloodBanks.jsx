@@ -198,9 +198,15 @@ const BloodBanks = () => {
 
                 <div className="bank-actions">
                   <div className="action-buttons">
-                    {bank.location?.coordinates && (
+                    {bank.location?.coordinates && 
+                     Array.isArray(bank.location.coordinates) &&
+                     bank.location.coordinates.length === 2 &&
+                     (bank.location.coordinates[0] !== 0 || bank.location.coordinates[1] !== 0) && (
                       <button 
-                        onClick={() => setSelectedLocation({ location: bank.location, name: bank.name })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLocation({ location: bank.location, name: bank.name });
+                        }}
                         className="btn-icon-only"
                         title="View on Map"
                       >
@@ -210,12 +216,21 @@ const BloodBanks = () => {
                         </svg>
                       </button>
                     )}
-                    <button className="btn-contact">
+                    <button 
+                      className="btn-contact"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `tel:${bank.phone}`;
+                      }}
+                    >
                       Contact Now
                     </button>
                     <button 
                       className="btn-view-inventory"
-                      onClick={() => setSelectedBloodBank(bank)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedBloodBank(bank);
+                      }}
                     >
                       View Inventory
                     </button>

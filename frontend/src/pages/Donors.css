@@ -199,6 +199,31 @@
   margin-left: auto;
 }
 
+/* Location Button on Card */
+.location-btn-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: white;
+  border: 2px solid #3b82f6;
+  color: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.location-btn-card:hover {
+  background: #3b82f6;
+  color: white;
+  transform: scale(1.1);
+}
+
+.location-btn-card svg {
+  flex-shrink: 0;
+}
+
 .contact-btn-card {
   display: flex;
   align-items: center;
@@ -398,12 +423,13 @@
 
 .contact-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 1rem;
 }
 
 .btn-call,
-.btn-email {
+.btn-email,
+.btn-location {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -441,6 +467,37 @@
   transform: translateY(-2px);
 }
 
+.btn-location {
+  background: white;
+  color: #3b82f6;
+  border: 2px solid #3b82f6;
+}
+
+.btn-location:hover {
+  background: #3b82f6;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.location-not-shared {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #f5f5f5;
+  color: #999;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: default;
+  border: 2px solid #e0e0e0;
+}
+
+.location-not-shared svg {
+  opacity: 0.6;
+}
+
 @media (max-width: 768px) {
   .donors-grid {
     grid-template-columns: 1fr;
@@ -456,4 +513,43 @@
   }
 }
 
+@media (max-width: 480px) {
+  .donors-page {
+    padding: 1rem;
+  }
 
+  .donors-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .filters-section {
+    padding: 1rem;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .donor-card {
+    border-radius: 12px;
+  }
+
+  .donor-image-section {
+    height: 200px;
+  }
+
+  .donor-info-section {
+    padding: 1rem;
+  }
+
+  .donor-name {
+    font-size: 1.1rem;
+  }
+
+  .contact-btn {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+  }
+}

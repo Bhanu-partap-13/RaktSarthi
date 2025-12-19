@@ -4,6 +4,17 @@
   box-sizing: border-box;
 }
 
+/* Global text selection color - Red */
+*::selection {
+  background: rgba(230, 57, 70, 0.3);
+  color: #1a1a1a;
+}
+
+*::-moz-selection {
+  background: rgba(230, 57, 70, 0.3);
+  color: #1a1a1a;
+}
+
 html {
   scroll-behavior: smooth;
 }

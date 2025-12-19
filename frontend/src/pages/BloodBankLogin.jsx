@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useToast } from '../components/ToastContainer';
 import './BloodBankAuth.css';
 
 const BloodBankLogin = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -56,9 +58,12 @@ const BloodBankLogin = () => {
         console.log('Existing saved inventory:', savedInventory);
       }
       
+      toast.success('Login successful! Welcome back.');
       navigate('/blood-bank/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      const errorMessage = err.response?.data?.message || 'Login failed. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
